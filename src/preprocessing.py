@@ -8,9 +8,13 @@ import pandas as pd
 import math
 import os
 from scipy.sparse import lil_matrix, csr_matrix, vstack
+from collections import defaultdict
 
 
-def preprocess(bin_file, image_file, prealigned, align, startx, starty, patchsize, bin_size, n_neighbor):
+def preprocess(
+    bin_file, image_file, prealigned, align, startx, starty, patchsize, bin_size, n_neighbor,
+    watershed_labels = None, out_path = './'
+):
     #read data
     if prealigned:
         adatasub = st.io.read_bgi_agg(bin_file, image_file, prealigned=True)
@@ -42,30 +46,34 @@ def preprocess(bin_file, image_file, prealigned, align, startx, starty, patchsiz
     axes[1].set_title('after alignment')
 
     try:
-        os.mkdir('fig/')
+        os.mkdir(f'{out_path}/fig/')
     except FileExistsError:
         print('fig folder exists')
 
-    plt.savefig('fig/alignment' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.png')
+    plt.savefig(f'{out_path}/fig/alignment' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.png')
 
     #nucleus segmentation from staining image
     fig, ax = plt.subplots(figsize=(8, 8), tight_layout=True)
     st.cs.mask_nuclei_from_stain(adatasub, otsu_classes = 4, otsu_index=1)
     st.pl.imshow(adatasub, 'stain_mask', ax = ax)
 
-    plt.savefig('fig/stain_mask' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.png')
+    plt.savefig(f'{out_path}/fig/stain_mask' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.png')
 
     st.cs.find_peaks_from_mask(adatasub, 'stain', 7)
-    st.cs.watershed(adatasub, 'stain', 5, out_layer='watershed_labels')
+    if watershed_labels is None:
+        st.cs.watershed(adatasub, 'stain', 5, out_layer='watershed_labels')
+    else:
+        adatasub.layers['watershed_labels'] = watershed_labels
 
     fig, ax = plt.subplots(figsize=(8, 8), tight_layout=True)
     st.pl.imshow(adatasub, 'stain', save_show_or_return='return', ax=ax)
     st.pl.imshow(adatasub, 'watershed_labels', labels=True, alpha=0.5, ax=ax)
-    plt.savefig('fig/watershed_labels' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.png')
+    plt.savefig(f'{out_path}/fig/watershed_labels' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.png')
     #adatasub.write('data/Mouse_brain_Adult_5800:8000:900:900.h5ad')
     #print(adatasub)
 
-    adatasub.write('data/spots' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.h5ad')
+    os.makedirs(f'{out_path}/data', exist_ok=True)
+    adatasub.write(f'{out_path}/data/spots' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.h5ad')
 
     print('Prepare data for neural network...')
     #print(adatasub.layers['watershed_labels'])
@@ -160,7 +168,7 @@ def preprocess(bin_file, image_file, prealigned, align, startx, starty, patchsiz
     #selected_index = geneidx[selected_index]
     #print(selected_index, len(selected_index))
 
-    with open('data/variable_genes' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', 'w') as fw:
+    with open(f'{out_path}/data/variable_genes' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', 'w') as fw:
         for id in selected_index:
             fw.write(id2gene[id] + '\n')
 
@@ -192,7 +200,7 @@ def preprocess(bin_file, image_file, prealigned, align, startx, starty, patchsiz
         for dx in range(-dis + 1, dis):
             offsets.append([dx * downrs, dis * downrs])
     for i in range(adatasub.layers['watershed_labels'].shape[0]):
-        if (i + 1) % 100 == 0:
+        if (i % 100 == 0) and (i != 0):
             print("finished {0:.0%}".format(i / adatasub.layers['watershed_labels'].shape[0]))
         for j in range(adatasub.layers['watershed_labels'].shape[1]):
             if (not i % downrs == 0) or (not j % downrs == 0):
@@ -309,9 +317,9 @@ def preprocess(bin_file, image_file, prealigned, align, startx, starty, patchsiz
     x_test_pos = np.array(x_test_pos)
     #print(x_test.shape, x_test_pos.shape)
 
-    np.savez_compressed('data/x_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', x_train=x_train)
-    np.savez_compressed('data/x_train_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', x_train_pos=x_train_pos)
-    np.savez_compressed('data/y_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', y_train=y_train)
-    np.savez_compressed('data/y_binary_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', y_binary_train=y_binary_train)
-    np.savez_compressed('data/x_test_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', x_test=x_test)
-    np.savez_compressed('data/x_test_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', x_test_pos=x_test_pos)
+    np.savez_compressed(f'{out_path}/data/x_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', x_train=x_train)
+    np.savez_compressed(f'{out_path}/data/x_train_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', x_train_pos=x_train_pos)
+    np.savez_compressed(f'{out_path}/data/y_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', y_train=y_train)
+    np.savez_compressed(f'{out_path}/data/y_binary_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', y_binary_train=y_binary_train)
+    np.savez_compressed(f'{out_path}/data/x_test_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', x_test=x_test)
+    np.savez_compressed(f'{out_path}/data/x_test_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz', x_test_pos=x_test_pos)

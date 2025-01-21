@@ -2,7 +2,11 @@ import math
 import numpy as np
 from src import preprocessing, transformer, postprocessing
 
-def segment_cells(bin_file, image_file, prealigned=False, align=None, patch_size=0, bin_size=3, n_neighbor=50, epochs=100, r_estimate=15, val_ratio=0.0625):
+def segment_cells(
+    bin_file, image_file, prealigned=False, align=None, 
+    patch_size=0, bin_size=3, n_neighbor=50, epochs=100, r_estimate=15, val_ratio=0.0625, 
+    watershed_labels = None, out_path = './'
+):
     """
     Parameters:
         bin_file - string, tsv file for detected RNAs
@@ -17,9 +21,12 @@ def segment_cells(bin_file, image_file, prealigned=False, align=None, patch_size
         val_ratio - float, the fraction of the patch set aside for validation, default 0.0625 (1/4 height x 1/4 width)
     """
     if patch_size == 0:
-        preprocessing.preprocess(bin_file, image_file, prealigned, align, 0, 0, patch_size, bin_size, n_neighbor)
-        transformer.train(0, 0, patch_size, epochs, val_ratio)
-        postprocessing.postprocess(0, 0, patch_size, bin_size, r_estimate)
+        preprocessing.preprocess(
+            bin_file, image_file, prealigned, align, 0, 0, patch_size, bin_size, 
+            n_neighbor, watershed_labels=watershed_labels, out_path=out_path
+        )
+        transformer.train(0, 0, patch_size, epochs, val_ratio, out_path=out_path)
+        postprocessing.postprocess(0, 0, patch_size, bin_size, r_estimate, out_path=out_path)
     else:
         r_all = []
         c_all = []

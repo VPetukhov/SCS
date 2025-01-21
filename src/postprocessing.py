@@ -145,7 +145,7 @@ def gvf_tracking(dx, dy, intensity, bin_size, K=50, Diffusions=10, Mu=5, Lambda=
     M = intensity.shape[0]
     N = intensity.shape[1]
 
-    Mask = (intensity > 0.1).astype(np.int)
+    Mask = (intensity > 0.1).astype(int)
 
     intensity_values = []
     for i in range(intensity.shape[0]):
@@ -305,7 +305,7 @@ def merge_sinks(Label, Sinks, downrs, Radius=3.5):
     # generate new labels for merged seeds, define memberships
     Labels = ms.label(Dilated)
     #print(Labels, np.max(Labels))
-    New = Labels[Sinks[:, 0].astype(np.int), Sinks[:, 1].astype(np.int)]
+    New = Labels[Sinks[:, 0].astype(int), Sinks[:, 1].astype(int)]
     New = New + 1
     #print('New', list(New), New.shape)
 
@@ -316,7 +316,7 @@ def merge_sinks(Label, Sinks, downrs, Radius=3.5):
     Merged = np.zeros(Label.shape)
 
     # get pixel list for each sink object
-    Props = ms.regionprops(Label.astype(np.int))
+    Props = ms.regionprops(Label.astype(int))
 
     # fill in new values
     for i in Unique:
@@ -399,7 +399,7 @@ def round_float(x):
             t -= 1.0
         return -t
 
-def result_stats(merged, startx, starty, patchsize):
+def result_stats(merged, startx, starty, patchsize, out_path: str):
     cell2nspots = {}
     for i in range(merged.shape[0]):
         for j in range(merged.shape[1]):
@@ -410,23 +410,23 @@ def result_stats(merged, startx, starty, patchsize):
                     cell2nspots[merged[i, j]] += 1
     all_sizes = [cell2nspots[cell] for cell in cell2nspots]
 
-    with open('results/cell_stats_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', 'w') as fw:
+    with open(f'{out_path}/results/cell_stats_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', 'w') as fw:
         fw.write('Number of cells: ' + str(len(cell2nspots)) + '\n')
         fw.write('Patch size (spots x spots): ' + str(merged.shape[0]) + ' x ' + str(merged.shape[1]) + '\n')
         fw.write('Average cell size (spots): ' + str(np.mean(all_sizes)) + '\n')
         fw.write('Standard deviation of cell sizes: ' + str(np.std(all_sizes)) + '\n')
 
-def postprocess(startx, starty, patchsize, bin_size, dia_estimate):
+def postprocess(startx, starty, patchsize, bin_size, dia_estimate, out_path: str, figsize=(32, 32)):
     downrs = bin_size
     startx = str(startx)
     starty = str(starty)
     patchsize = str(patchsize)
-    adata = ad.read_h5ad('data/spots' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.h5ad')
+    adata = ad.read_h5ad(f'{out_path}/data/spots' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.h5ad')
     patchsizex = adata.X.shape[0]
     patchsizey = adata.X.shape[1]
 
     print('Adjust spot prediction priors...')
-    intensity, dx, dy, pred_U, pred_V, pred_C = read_gradient('results/spot_prediction_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', adata, (int(patchsizex), int(patchsizey)), bin_size, dia_estimate)
+    intensity, dx, dy, pred_U, pred_V, pred_C = read_gradient(f'{out_path}/results/spot_prediction_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', adata, (int(patchsizex), int(patchsizey)), bin_size, dia_estimate)
     print('Gradient flow tracking...')
     Segmentation, Sinks, dx, dy, mask = gvf_tracking(dx, dy, intensity, bin_size)
     #print('Sinks', Sinks, len(Sinks))
@@ -457,8 +457,8 @@ def postprocess(startx, starty, patchsize, bin_size, dia_estimate):
                             edges[i, j] = 1
                             break
 
-    fig, ax = plt.subplots(figsize=(32, 32), tight_layout=True)
-    fw = open('results/spot2cell_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', 'w')
+    fig, ax = plt.subplots(figsize=figsize, tight_layout=True)
+    fw = open(f'{out_path}/results/spot2cell_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', 'w')
     for i in range(merged.shape[0]):
         for j in range(merged.shape[1]):
             if merged[i, j] > 0:
@@ -466,19 +466,22 @@ def postprocess(startx, starty, patchsize, bin_size, dia_estimate):
     fw.close()
 
     nucl_labels = adata.layers['watershed_labels']
-    fw = open('results/spot2nucl_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', 'w')
+    fw = open(f'{out_path}/results/spot2nucl_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', 'w')
     for i in range(nucl_labels.shape[0]):
         for j in range(nucl_labels.shape[1]):
             if nucl_labels[i, j] > 0:
                 fw.write(str(i) + ':' + str(j) + '\t' + str(nucl_labels[i, j]) + '\n')
     fw.close()
 
-    result_stats(merged, startx, starty, patchsize)
+    result_stats(merged, startx, starty, patchsize, out_path=out_path)
 
+    cell_labels = merged.copy()
     idx = np.where(merged == 0)
     merged = merged % 9 + 1
     merged[idx] = 0
     plt.imshow(merged, alpha=0.6, cmap='tab10')
     plt.imshow(edges, alpha=0.2, cmap='Greys')
     q = ax.quiver(dy * mask * 10, - dx * mask * 10, intensity, scale=5, width=0.2, units='x')
-    plt.savefig('results/cell_masks_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.png')
+    plt.savefig(f'{out_path}/results/cell_masks_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.png')
+
+    return cell_labels

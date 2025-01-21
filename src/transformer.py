@@ -87,7 +87,12 @@ def create_transformer_classifier(class_num, input_shape, input_position_shape, 
     model = keras.Model(inputs=[inputs, inputs_positions], outputs=[pos, binary])
     return model
 
-def run_experiment(startx, starty, patchsize, model, x_train, x_train_pos, x_train_, x_train_pos_, y_train, y_train_, y_binary_train, x_test, x_test_pos, x_validation, x_validation_pos, y_validation, y_binary_validation, learning_rate, weight_decay, batch_size, num_epochs):
+def run_experiment(
+    startx, starty, patchsize, model, x_train, x_train_pos, x_train_, x_train_pos_, 
+    y_train, y_train_, y_binary_train, x_test, x_test_pos, x_validation, x_validation_pos, 
+    y_validation, y_binary_validation, learning_rate, weight_decay, batch_size, num_epochs,
+    out_path: str
+):
     optimizer = tfa.optimizers.AdamW(
         learning_rate=learning_rate, weight_decay=weight_decay
     )
@@ -102,7 +107,7 @@ def run_experiment(startx, starty, patchsize, model, x_train, x_train_pos, x_tra
         },
     )
 
-    checkpoint_filepath = os.path.join('./ckpt', 'model_' + startx + '_' + starty + '_' + patchsize, 'ckpt')
+    checkpoint_filepath = os.path.join(out_path, 'ckpt', 'model_' + startx + '_' + starty + '_' + patchsize, 'ckpt')
     if not os.path.exists(checkpoint_filepath):
         os.makedirs(checkpoint_filepath)
     if len(x_validation[np.where(y_binary_validation == 1)]) < 100:
@@ -160,14 +165,14 @@ def run_experiment(startx, starty, patchsize, model, x_train, x_train_pos, x_tra
     pred_binary_train = np.vstack(pred_binary_train_all)
     #for i in range(len(y_train_)):
     #    print(y_train_[i], pred_binary_train[i], pred_centers_train[i])
-    x_train_pos__ = np.load('data/x_train_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
+    x_train_pos__ = np.load(f'{out_path}/data/x_train_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
     x_train_pos__ = x_train_pos__['x_train_pos']
-    x_test_pos_ = np.load('data/x_test_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
+    x_test_pos_ = np.load(f'{out_path}/data/x_test_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
     x_test_pos_ = x_test_pos_['x_test_pos']
     #print(y_train_.shape, x_train_pos__.shape)
 
     print('Write prediction results...')
-    with open('results/spot_prediction_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', 'w') as fw:
+    with open(f'{out_path}/results/spot_prediction_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.txt', 'w') as fw:
         for i in range(len(y_train_)):
             fw.write(str(x_train_pos__[i][0][0]) + '\t' + str(x_train_pos__[i][0][1]) + '\t' + str(pred_binary_train[i][0]) + '\t' + ':'.join([str(c) for c in pred_centers_train[i]]) + '\n')
         for i in range(len(x_test_pos_)):
@@ -175,31 +180,31 @@ def run_experiment(startx, starty, patchsize, model, x_train, x_train_pos, x_tra
 
     return
 
-def train(startx, starty, patchsize, epochs, val_ratio):
+def train(startx, starty, patchsize, epochs, val_ratio, out_path: str):
     startx = str(startx)
     starty = str(starty)
     patchsize = str(patchsize)
     try:
-        os.mkdir('results/')
+        os.mkdir(f'{out_path}/results')
     except FileExistsError:
         print('results folder exists.')
-    x_train_ = np.load('data/x_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
+    x_train_ = np.load(f'{out_path}/data/x_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
     x_train_ = x_train_['x_train'].astype(np.float32)
-    x_train_pos_ = np.load('data/x_train_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
+    x_train_pos_ = np.load(f'{out_path}/data/x_train_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
     x_train_pos_ = x_train_pos_['x_train_pos'].astype(np.int32)
-    y_train_ = np.load('data/y_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
+    y_train_ = np.load(f'{out_path}/data/y_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
     y_train_ = y_train_['y_train']
-    y_binary_train_ = np.load('data/y_binary_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
+    y_binary_train_ = np.load(f'{out_path}/data/y_binary_train_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
     y_binary_train_ = y_binary_train_['y_binary_train'].astype(np.int32)
-    x_test = np.load('data/x_test_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
+    x_test = np.load(f'{out_path}/data/x_test_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
     x_test = x_test['x_test'].astype(np.float32)
-    x_test_pos = np.load('data/x_test_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
+    x_test_pos = np.load(f'{out_path}/data/x_test_pos_' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.npz')
     x_test_pos = x_test_pos['x_test_pos'].astype(np.int32)
     class_num = 16
 
     x_train_select = []
     x_validation_select = []
-    adata = ad.read_h5ad('data/spots' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.h5ad')
+    adata = ad.read_h5ad(f'{out_path}/data/spots' + startx + ':' + starty + ':' + patchsize + ':' + patchsize + '.h5ad')
     for i in range(len(x_train_pos_)):
         if x_train_pos_[i][0][0] > int(adata.X.shape[0] * (1 - np.sqrt(val_ratio))) and x_train_pos_[i][0][1] > int(adata.X.shape[1] * (1 - np.sqrt(val_ratio))):
             x_validation_select.append(i)
@@ -249,4 +254,9 @@ def train(startx, starty, patchsize, epochs, val_ratio):
     mlp_head_units = [1024, 256]  # Size of the dense layers of the final classifier
 
     transformer_classifier = create_transformer_classifier(class_num, input_shape, input_position_shape, num_patches, projection_dim, num_heads, transformer_units, transformer_layers, mlp_head_units)
-    run_experiment(startx, starty, patchsize, transformer_classifier, x_train, x_train_pos, x_train_, x_train_pos_, y_train, y_train_, y_binary_train, x_test, x_test_pos, x_validation, x_validation_pos, y_validation, y_binary_validation, learning_rate, weight_decay, batch_size, num_epochs)
+    run_experiment(
+        startx, starty, patchsize, transformer_classifier, x_train, x_train_pos, x_train_, x_train_pos_, 
+        y_train, y_train_, y_binary_train, x_test, x_test_pos, x_validation, x_validation_pos, 
+        y_validation, y_binary_validation, learning_rate, weight_decay, batch_size, num_epochs,
+        out_path=out_path
+    )
